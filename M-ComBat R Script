@@ -1,5 +1,5 @@
 
-######    M-ComBat###########################################################################################
+######    M-ComBat   ###########################################################################################
 ## 
 ##   Overview:  Script necessary to perform M-ComBat to transform GEP data to
 ##              a pre-determined, 'gold-standard' subset of samples.
@@ -138,3 +138,5 @@ M.COMBAT <- function (dat, batch, center , mod, numCovs = NULL )
   
   return(bayesdata)
 }
+
+##################################################
