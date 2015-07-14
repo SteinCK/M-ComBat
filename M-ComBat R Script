@@ -55,15 +55,19 @@ pairs(data.frame(t(RES3)),col=c("blue","red")[batch],xlim=c(0,25),ylim=c(0,25),g
 
 M.COMBAT <- function (dat, batch, center , mod, numCovs = NULL ) 
 {
-  mod = cbind(mod, batch)
-  check = apply(mod, 2, function(x) all(x == 1))
-  mod = as.matrix(mod[, !check])
-  colnames(mod)[ncol(mod)] = "Batch"
-  if (sum(check) > 0 & !is.null(numCovs)) 
-    numCovs = numCovs - 1
-  design <- sva:::design.mat(mod, numCov = numCovs)
-  batches <- sva:::list.batch(mod)
-  n.batch <- length(batches)
+  batch <- as.factor(batch)
+  batchmod <- model.matrix(~-1 + batch)
+  cat("Found", nlevels(batch), "batches\n")
+  n.batch <- nlevels(batch)
+  batches <- list()
+  for (i in 1:n.batch) {
+    batches[[i]] <- which(batch == levels(batch)[i])
+  }
+  n.batches <- sapply(batches, length)
+  n.array <- sum(n.batches)
+  design <- cbind(batchmod, mod)
+  check <- apply(design, 2, function(x) all(x == 1))
+  design <- as.matrix(design[, !check])
   n.batches <- sapply(batches, length)
   n.array <- sum(n.batches)
   NAs = any(is.na(dat))
@@ -140,3 +144,48 @@ M.COMBAT <- function (dat, batch, center , mod, numCovs = NULL )
 }
 
 ##################################################
+
+functions from sva used
+
+> sva:::aprior
+function (gamma.hat) 
+{
+    m = mean(gamma.hat)
+    s2 = var(gamma.hat)
+    (2 * s2 + m^2)/s2
+}
+<environment: namespace:sva>
+> sva:::bprior
+function (gamma.hat) 
+{
+    m = mean(gamma.hat)
+    s2 = var(gamma.hat)
+    (m * s2 + m^3)/s2
+}
+<environment: namespace:sva>
+> sva:::it.sol
+function (sdat, g.hat, d.hat, g.bar, t2, a, b, conv = 1e-04) 
+{
+    n <- apply(!is.na(sdat), 1, sum)
+    g.old <- g.hat
+    d.old <- d.hat
+    change <- 1
+    count <- 0
+    while (change > conv) {
+        g.new <- postmean(g.hat, g.bar, n, d.old, t2)
+        sum2 <- apply((sdat - g.new %*% t(rep(1, ncol(sdat))))^2, 
+            1, sum, na.rm = T)
+        d.new <- postvar(sum2, n, a, b)
+        change <- max(abs(g.new - g.old)/g.old, abs(d.new - d.old)/d.old)
+        g.old <- g.new
+        d.old <- d.new
+        count <- count + 1
+    }
+    adjust <- rbind(g.new, d.new)
+    rownames(adjust) <- c("g.star", "d.star")
+    adjust
+}
+<environment: namespace:sva>
+
+############################################
+
