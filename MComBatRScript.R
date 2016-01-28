@@ -24,11 +24,15 @@
 M.COMBAT <- function (dat, batch, center, mod, numCovs = NULL){
 
   mod = cbind(mod, batch)
+
+  # the next two lines remove the intercept from the model matrix
   check = apply(mod, 2, function(x) all(x == 1))
   mod = as.matrix(mod[, !check])
   colnames(mod)[ncol(mod)] = "Batch"
+
   if (sum(check) > 0 & !is.null(numCovs)) 
     numCovs = numCovs - 1
+
   design <- sva:::design.mat(mod, numCov = numCovs)
   batches <- sva:::list.batch(mod)
   n.batch <- length(batches)
@@ -44,7 +48,7 @@ M.COMBAT <- function (dat, batch, center, mod, numCovs = NULL){
   # seems to have some kind of untraceable Beta.NA internal function. 
   cat("Standardizing Data across genes\n")
 
-  
+  # compute B.hat using all batches
   B.hat <- solve(t(design) %*% design) %*% t(design) %*% t(as.matrix(dat))
   
   # variance of batch of interest
@@ -54,12 +58,10 @@ M.COMBAT <- function (dat, batch, center, mod, numCovs = NULL){
   stand.mean =  matrix(NA,nrow(dat),ncol(dat))
   stand.sds = matrix(NA,nrow(dat),ncol(dat))  # initialize stand.mean and stand.sds
 
-
   for( i in 1:n.batch){
     stand.mean[,batch==levels(as.factor(batch))[i]] = matrix(B.hat[i,],nrow(dat),n.batches[i])
-    stand.sds[,batch==levels(as.factor(batch))[i]] <- matrix(apply(dat[,batch==levels(as.factor(batch))[i]],1,sd),nrow(dat),n.batches[i])
+    stand.sds[,batch==levels(as.factor(batch))[i]] = matrix(apply(dat[,batch==levels(as.factor(batch))[i]],1,sd),nrow(dat),n.batches[i])
   }
-
   
   # accounts for covariates here
   if (!is.null(design)) {
@@ -68,16 +70,15 @@ M.COMBAT <- function (dat, batch, center, mod, numCovs = NULL){
     stand.mean <- stand.mean + t(tmp %*% B.hat)
   }
   
-  
   # standardized data
   s.data <- (dat - stand.mean)/(stand.sds)
-
+  
   cat("Fitting L/S model and finding priors\n")
   batch.design <- design[, 1:n.batch]
   
-  
   gamma.hat <- solve(t(batch.design) %*% batch.design) %*% t(batch.design) %*% t(as.matrix(s.data))
   
+  # calculate delta.hat from the standardized data
   delta.hat <- NULL
   for (i in batches) {
     delta.hat <- rbind(delta.hat, apply(s.data[, i], 1, var,  na.rm = T)) }
@@ -97,7 +98,7 @@ M.COMBAT <- function (dat, batch, center, mod, numCovs = NULL){
     gamma.star <- rbind(gamma.star, temp[1, ])
     delta.star <- rbind(delta.star, temp[2, ])
   }
-  
+
   cat("Adjusting the Data\n")
   bayesdata <- s.data
   
@@ -123,11 +124,11 @@ runExample = FALSE
 if (runExample){
 
 # install sva package from bioconductor
-source("http://bioconductor.org/biocLite.R")
-biocLite("sva")
-library(sva)
+#source("http://bioconductor.org/biocLite.R")
+#biocLite("sva")
+library(sva, quietly=TRUE)
 
-# generate sample data (50 samples in set A, 50 samples in set B , for 5 unique genes)
+# generate sample data (20 samples in set A, 20 samples in set B , for 5 unique genes)
 A <- rbind( rnorm( 50 , 10 , 2), rnorm( 50, 11 , 3), rnorm( 50 , 10.5 , 4), rnorm( 50 , 11.5 , 5), rnorm( 50 , 11.5, 2))
 B <- rbind( rnorm( 50 , 20 , 2), rnorm( 50, 21 , 3), rnorm( 50 , 21.5 , 4), rnorm( 50 , 20.5 , 5), rnorm( 50 , 20.5, 2))
 C <- cbind( A , B )
@@ -143,12 +144,13 @@ RES1 <- ComBat( C , batch , mod )
 RES2 <- M.COMBAT( C , batch , center=1 , mod )  # perform  M-ComBat centered at batch 1
 RES3 <- M.COMBAT( C , batch , center=2 , mod )  # perform  M-ComBat centered at batch 2
 
+pdf('example.pdf')
 # paired scatterplots
 pairs(data.frame(t(C)),col=c("blue","red")[batch],xlim=c(0,25),ylim=c(0,25),gap=0)     # Untransformed
 pairs(data.frame(t(RES1)),col=c("blue","red")[batch],xlim=c(0,25),ylim=c(0,25),gap=0)  # ComBat
 pairs(data.frame(t(RES2)),col=c("blue","red")[batch],xlim=c(0,25),ylim=c(0,25),gap=0)  # M-CoMBat (batch1 center)
 pairs(data.frame(t(RES3)),col=c("blue","red")[batch],xlim=c(0,25),ylim=c(0,25),gap=0)  # M-CoMBat (batch2 center)
-
+dev.off()
 
 # the batch parameter can also be a string:
 batch = c( rep( 'data from X' , ncol(A)) , rep( 'data from Y' , ncol(B) ))
@@ -157,7 +159,6 @@ RES3 <- M.COMBAT( C , batch , center='data from Y' , mod )  # perform  M-ComBat 
 
 pairs(data.frame(t(RES2)),col=c("blue","red"),xlim=c(0,max(RES2)),ylim=c(0,max(RES2)),gap=0)  # M-CoMBat (batch1 center)
 pairs(data.frame(t(RES3)),col=c("blue","red"),xlim=c(0,max(RES3)),ylim=c(0,max(RES3)),gap=0)  # M-CoMBat (batch2 center)
-
 }
 remove(runExample)
 ####################
