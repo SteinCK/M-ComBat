@@ -82,23 +82,19 @@ M.COMBAT <- function (dat, batch, center , mod, numCovs = NULL )
   
   # variance of batch of interest
   var.batch <- apply(dat[, batch==center], 1, var)
+  var.pooled <- ((dat - t(design %*% B.hat))^2) %*% rep(1/n.array, n.array)
   
-  # batch gene-wise means and standard deviations
-  stand.mean=stand.sds <- matrix(NA,nrow(dat),ncol(dat))
-  for( i in 1:n.batch){
-    stand.mean[,batch==i] <- matrix(B.hat[i,],nrow(dat),n.batches[i])
-    stand.sds[,batch==i] <- matrix(apply(dat[,batch==i],1,sd),nrow(dat),n.batches[i])
-  }
-  
+  grand.mean <- t(n.batches/n.array) %*% B.hat[1:n.batch, ]
+  stand.mean <- t(grand.mean) %*% t(rep(1, n.array))
+
   # accounts for covariates here
   if (!is.null(design)) {
     tmp <- design
     tmp[, c(1:n.batch)] <- 0
     stand.mean <- stand.mean + t(tmp %*% B.hat)}
   
-  
   # standardized data
-  s.data <- (dat - stand.mean)/(stand.sds)
+  s.data <- (dat - stand.mean)/(sqrt(var.pooled) %*% t(rep(1, n.array)))
   
   cat("Fitting L/S model and finding priors\n")
   batch.design <- design[, 1:n.batch]
@@ -127,17 +123,12 @@ M.COMBAT <- function (dat, batch, center , mod, numCovs = NULL )
   
   cat("Adjusting the Data\n")
   bayesdata <- s.data
-  
-  k <- (1:n.batch)[-center]
-  
-  for( t in 1:length(k)){
-    
-    i <- batches[[k[t]]]
-    j <- k[t]
-    bayesdata[, i] <- (bayesdata[, i] - t(batch.design[i, ] %*% gamma.star))/(sqrt(delta.star[j, ]) %*% t(rep(1,  n.batches[j])))
-    
+  j <- 1
+  for (i in batches) {
+    bayesdata[, i] <- (bayesdata[, i] - t(batch.design[i,] %*% gamma.star))/(sqrt(delta.star[j, ]) %*% t(rep(1, n.batches[j])))
+    j <- j + 1
   }
-  
+
   bayesdata <- (bayesdata * (sqrt(var.batch) %*% t(rep(1, n.array)))) + matrix( B.hat[center,] , nrow(dat) , ncol(dat))
   
   return(bayesdata)
